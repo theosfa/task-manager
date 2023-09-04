@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- Add Bootstrap CSS links here -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="row">
+            <div class="col">
+                <h2>To Do</h2>
+                <ul class="list-group" id="todo-list">
+                    {% for task in todo_tasks %}
+                    <li class="list-group-item" id="task-{{ task.id }}" data-task-id="{{ task.id }}">{{ task.title }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <div class="col">
+                <h2>In Progress</h2>
+                <ul class="list-group" id="in-progress-list">
+                    {% for task in in_progress_tasks %}
+                    <li class="list-group-item" id="task-{{ task.id }}" data-task-id="{{ task.id }}">{{ task.title }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <div class="col">
+                <h2>Done</h2>
+                <ul class="list-group" id="done-list">
+                    {% for task in done_tasks %}
+                    <li class="list-group-item" id="task-{{ task.id }}" data-task-id="{{ task.id }}">{{ task.title }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        <!-- Button to add a new task -->
+    <button id="add-task-button">Add Task</button>
+    
+    <!-- Container for the new task form (hidden initially) -->
+    <div id="new-task-form" style="display: none;">
+        {% csrf_token %}
+        <input type="text" id="new-task-title" placeholder="Task Title">
+        <select id="new-task-status">
+            <option value="To Do">To Do</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Done">Done</option>
+        </select>
+        <button id="submit-new-task">Add</button>
+    </div>
+    </div>
+    <script>
+        document.getElementById('add-task-button').addEventListener('click', function () {
+            const newTaskForm = document.getElementById('new-task-form');
+            newTaskForm.style.display = 'block';
+
+            document.getElementById('submit-new-task').addEventListener('click', function () {
+                const title = document.getElementById('new-task-title').value;
+                const status = document.getElementById('new-task-status').value;
+
+                // Send an AJAX request to add the new task to the database
+                fetch('/add/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken'), // Add CSRF token
+                    },
+                    body: JSON.stringify({ title, status }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Reload the page or update the Kanban board UI
+                        location.reload(); // You may want to use AJAX to update the board without a page reload
+                    } else {
+                        alert('Failed to add task');
+                    }
+                });
+            });
+
+            // Function to get CSRF token from cookies
+            function getCookie(name) {
+                const value = `; ${document.cookie}`;
+                const parts = value.split(`; ${name}=`);
+                if (parts.length === 2) return parts.pop().split(';').shift();
+            }
+        });
+        function getCookie(name) {
+            var cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                var cookies = document.cookie.split(';');
+                for (var i = 0; i < cookies.length; i++) {
+                    var cookie = cookies[i].trim();
+                    // Check if the cookie name matches the provided name
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        const columns = [
+            { id: 'todo-list', status: 'To Do' },
+            { id: 'in-progress-list', status: 'In Progress' },
+            { id: 'done-list', status: 'Done' },
+        ];
+
+        // columns.forEach((column) => {
+        //     const list = document.getElementById(column.id);
+        //     const sortable = new Sortable(list, {
+        //         group: 'kanban-board',
+        //         animation: 150,
+        //         onEnd: function (evt) {
+        //             handleTaskDrop(evt, column.status);
+        //         },
+        //     });
+        // });
+        columns.forEach((column) => {
+            const list = document.getElementById(column.id);
+            const sortable = new Sortable(list, {
+                group: 'kanban-board',
+                animation: 150,
+                onEnd: (function (col) {
+                    return function (evt) {
+                        handleTaskDrop(evt, col.status);
+                    };
+                })(column), // Pass the current column as an argument to the function
+            });
+        });
+        function handleTaskDrop(evt, newStatus) {
+            const taskId = evt.item.getAttribute('data-task-id');
+            console.log(taskId);
+            console.log(newStatus)
+            updateTaskStatus(taskId, newStatus);
+        }
+        function updateTaskStatus(taskId, newStatus) {
+            // Send an AJAX request to update the task status in your Django backend
+            fetch(`/update-task-status/${taskId}/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken'), // Include your CSRF token
+                },
+                body: JSON.stringify({ newStatus }),
+            })
+            .then((response) => {
+                if (response.ok) {
+                    console.log('Task status updated successfully.');
+                } else {
+                    console.error('Failed to update task status.');
+                }
+            });
+        }
+    </script>
+    
+</body>
+</html>
+
